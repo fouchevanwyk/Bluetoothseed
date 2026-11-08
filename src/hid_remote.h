@@ -10,5 +10,8 @@ bool bleConnected();
 // log = false keeps auto-repeat from flooding the serial log.
 bool sendKey(uint16_t key, bool log = true);
 
-// Resend a key release that didn't get through. Call every loop.
-void flushRelease();
+// Call every loop: resends a key release that didn't get through and
+// asks the phone for a battery-friendly connection interval.
+void blePoll();
+
+void bleLogStatus();   // one log line: phone, encryption, interval

@@ -3,6 +3,7 @@
 //   blue 1 s    = connected         red 0.5 s  = disconnected
 //   short blue blink every 2 s      = waiting for the phone
 //   two red blinks                  = going to sleep
+//   tiny red flash once a minute    = battery low
 #pragma once
 #include <Arduino.h>
 

@@ -1,5 +1,5 @@
-// The five media buttons: debounce, key repeat and the wiring check.
+// The one button: debounce, tap / hold gestures and the wiring check.
 #pragma once
 
 void buttonsBegin();
-void buttonsPoll();    // read every button and send keys; call every loop
+void buttonsPoll();    // read the button and send keys; call every loop

@@ -7,26 +7,45 @@
 #define MANUFACTURER  "DIY"
 constexpr int8_t TX_POWER_DBM = 4;    // radio power (-40..+8)
 
-// ---- Buttons ----------------------------------------------------------
-// Every button connects its pin to GND (internal pull-ups).
-constexpr uint8_t BTN_PLAY = D1;  // play/pause
-constexpr uint8_t BTN_VUP  = D2;  // volume up   (repeats while held)
-constexpr uint8_t BTN_VDN  = D3;  // volume down (repeats while held)
-constexpr uint8_t BTN_NEXT = D4;  // next track
-constexpr uint8_t BTN_PREV = D5;  // previous track
+// Connection interval the remote asks the phone for, in 1.25 ms units.
+// 24-48 = 30-60 ms: still instant for buttons, much easier on the battery
+// than the 11-15 ms phones often start with.
+constexpr uint16_t CONN_INTERVAL_MIN = 24;
+constexpr uint16_t CONN_INTERVAL_MAX = 48;
 
-constexpr uint8_t BUTTON_PINS[] = { BTN_PLAY, BTN_VUP, BTN_VDN, BTN_NEXT, BTN_PREV };
+// ---- The button -------------------------------------------------------
+// One button from D1 to GND (internal pull-up) does everything:
+//   tap              play / pause
+//   double tap       next track
+//   triple tap       previous track
+//   hold             volume up   (repeats while held)
+//   tap, then hold   volume down (repeats while held)
+constexpr uint8_t BTN = D1;
+constexpr uint8_t BUTTON_PINS[] = { BTN };   // pins that wake it from sleep
+
+// ---- Battery ----------------------------------------------------------
+// 2 x AAA measured on D0 through a 1M/1M divider with 100 nF to GND
+// (after the on/off switch, before the diode).
+constexpr uint8_t PIN_BATT = D0;
+// Which cells are fitted, for the percentage shown on the phone:
+// false = alkaline (normal throw-away AAA), true = NiMH rechargeable.
+constexpr bool BATTERY_NIMH = false;
+constexpr uint8_t  LOW_BATT_PCT  = 15;           // red flash each minute below this
+constexpr uint32_t BATT_EVERY_MS = 60UL * 1000;  // how often it is measured
 
 // ---- Timings (ms) -----------------------------------------------------
-constexpr uint32_t POLL_MS         = 10;    // how often buttons are read
+constexpr uint32_t POLL_MS         = 10;    // how often the button is read
 constexpr uint32_t DEBOUNCE_MS     = 25;    // pin must be stable this long
 constexpr uint32_t KEY_HOLD_MS     = 20;    // gap between key press and release
 
-// Volume auto-repeat. Repeats stop after REPEAT_LIMIT_MS so a wire stuck
-// on GND can't keep forcing the volume up; release to repeat again.
-constexpr uint32_t REPEAT_DELAY_MS = 400;   // hold this long before repeating
-constexpr uint32_t REPEAT_EVERY_MS = 120;   // then one step per interval
-constexpr uint32_t REPEAT_LIMIT_MS = 3000;  // stop repeating after this
+constexpr uint32_t TAP_GAP_MS      = 350;   // pause that ends a tap sequence
+constexpr uint32_t HOLD_MS         = 500;   // pressed this long = hold (volume)
+
+// Volume repeat while held. Repeats stop after REPEAT_LIMIT_MS so a
+// button or wire stuck on GND can't max out the volume; release and hold
+// again to keep going.
+constexpr uint32_t REPEAT_EVERY_MS = 150;   // one volume step per interval
+constexpr uint32_t REPEAT_LIMIT_MS = 4000;  // stop repeating after this
 constexpr uint32_t STUCK_WARN_MS   = 5000;  // log "pin stuck?" after this
 
 // Power down after this long with no phone connected and no button use.

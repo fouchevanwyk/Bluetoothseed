@@ -1,6 +1,7 @@
 #include "hid_remote.h"
 #include "config.h"
 #include "status_led.h"
+#include "battery.h"
 
 static BLEDis bledis;
 
@@ -33,7 +34,7 @@ static bool sendConsumer(uint16_t usage) {
 // loop so a weak link can never leave a key held down on the phone.
 static bool releasePending = false;
 
-void flushRelease() {
+static void flushRelease() {
   if (!releasePending) return;
   // On disconnect the phone releases all keys itself.
   if (!bleConnected() || sendConsumer(0)) releasePending = false;
@@ -61,6 +62,57 @@ bool sendKey(uint16_t key, bool log) {
 
 bool bleConnected() {
   return Bluefruit.connected();
+}
+
+// ---- Connection interval --------------------------------------------
+// Phones usually connect with an 11-15 ms interval. A few seconds after
+// connecting (once pairing and service discovery are done) ask for the
+// slower CONN_INTERVAL_MIN..MAX instead: the radio wakes 3-4x less often.
+static void tuneInterval() {
+  static bool     wasConnected = false, asked = false;
+  static uint32_t connectedAt  = 0;
+  static uint16_t shown        = 0;
+
+  bool connected = bleConnected();
+  if (connected != wasConnected) {
+    wasConnected = connected;
+    connectedAt  = millis();
+    asked = false;
+    shown = 0;
+  }
+  if (!connected) return;
+
+  BLEConnection *conn = Bluefruit.Connection(Bluefruit.connHandle());
+  if (!conn) return;
+  uint16_t iv = conn->getConnectionInterval();   // 1.25 ms units
+  if (iv != shown) {
+    shown = iv;
+    LOG("[BLE] connection interval %u.%02u ms\r\n", iv * 125 / 100, iv * 125 % 100);
+  }
+  if (!asked && conn->secured() && millis() - connectedAt >= 5000 &&
+      (iv < CONN_INTERVAL_MIN || iv > CONN_INTERVAL_MAX)) {
+    asked = true;
+    // NULL = use the preferred values set with setConnInterval().
+    uint32_t err = sd_ble_gap_conn_param_update(conn->handle(), NULL);
+    LOG("[BLE] asking the phone for %u-%u ms to save battery%s\r\n",
+        CONN_INTERVAL_MIN * 5 / 4, CONN_INTERVAL_MAX * 5 / 4,
+        err ? " - request failed" : "");
+  }
+}
+
+void bleLogStatus() {
+  BLEConnection *conn = Bluefruit.Connection(Bluefruit.connHandle());
+  if (!bleConnected() || !conn) { LOG("link: advertising, waiting for the phone\r\n"); return; }
+  char peer[32] = { 0 };
+  conn->getPeerName(peer, sizeof(peer));
+  uint16_t iv = conn->getConnectionInterval();
+  LOG("link: \"%s\" | %s | interval %u.%02u ms\r\n", peer,
+      conn->secured() ? "encrypted" : "NOT encrypted yet", iv * 125 / 100, iv * 125 % 100);
+}
+
+void blePoll() {
+  flushRelease();
+  tuneInterval();
 }
 
 // ---- Connection events (logged only) ----------------------------------
@@ -117,9 +169,11 @@ void bleBegin() {
   blehid.setReportLen(hidInputLen, NULL, NULL);
   blehid.setReportMap(hidReportMap, sizeof(hidReportMap));
   blehid.begin();
+  batteryBegin();
   Bluefruit.setAppearance(BLE_APPEARANCE_GENERIC_HID);
-  // 11.25-15 ms connection interval for low key latency.
-  Bluefruit.Periph.setConnInterval(9, 12);
+  // The interval we'd like; the phone picks the first one itself, so
+  // tuneInterval() asks again once connected.
+  Bluefruit.Periph.setConnInterval(CONN_INTERVAL_MIN, CONN_INTERVAL_MAX);
 
   startAdv();
 }
